@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House 360 Viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; font: 14px system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  #bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; }
+  button { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  #angle { width: min(60vw, 360px); }
+</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar">
+  <button id="play">Pause</button>
+  <input id="angle" type="range" min="0" max="360" step="0.5" value="0" aria-label="Rotation">
+</div>
+<script type="module">
+  import { createScene } from './src/scene.js';
+  const canvas = document.getElementById('c');
+  const s = await createScene(canvas, { width: innerWidth, height: innerHeight, pixelRatio: Math.min(devicePixelRatio, 2) });
+  const slider = document.getElementById('angle');
+  const play = document.getElementById('play');
+  let angle = 0, playing = true, last = performance.now(), drag = null;
+  const SPEED = 360 / 16; // deg per second, same as the video
+
+  addEventListener('resize', () => s.resize(innerWidth, innerHeight));
+  play.onclick = () => { playing = !playing; play.textContent = playing ? 'Pause' : 'Play'; };
+  slider.oninput = () => { angle = +slider.value; playing = false; play.textContent = 'Play'; };
+  canvas.onpointerdown = (e) => { drag = e.clientX; canvas.setPointerCapture(e.pointerId); playing = false; play.textContent = 'Play'; };
+  canvas.onpointermove = (e) => { if (drag !== null) { angle -= (e.clientX - drag) * 0.4; drag = e.clientX; } };
+  canvas.onpointerup = () => { drag = null; };
+
+  function tick(now) {
+    if (playing) angle += SPEED * (now - last) / 1000;
+    last = now;
+    angle = ((angle % 360) + 360) % 360;
+    slider.value = angle;
+    s.setOrbit(angle * Math.PI / 180);
+    s.render();
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "house-360",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "textures": "python3 tools/crop_textures.py",
+    "serve": "node tools/serve.mjs",
+    "render": "node tools/render.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>House render</title>
+<style>html,body{margin:0;background:#fff}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  import { createScene } from './src/scene.js';
+  const p = new URLSearchParams(location.search);
+  const w = +(p.get('w') || 1920), h = +(p.get('h') || 1080);
+  const s = await createScene(document.getElementById('c'), { width: w, height: h });
+  window.renderAt = (angle) => { s.setOrbit(angle); s.render(); };
+  window.grab = (angle, q = 0.95) => { window.renderAt(angle); return document.getElementById('c').toDataURL('image/jpeg', q); };
+  window.sceneReady = true;
+</script>
+</body>
+</html>
