@@ -1,5 +1,6 @@
 // Render a 360 orbit around the house to an MP4.
-//   node tools/render.mjs [--seconds 16] [--fps 60] [--w 1920] [--h 1080] [--out output/house_360.mp4] [--stills]
+//   node tools/render.mjs [--seconds 16] [--fps 60] [--w 1920] [--h 1080] [--ss 2] [--out output/house_360.mp4]
+//   node tools/render.mjs --stills [--count 16]
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -24,6 +25,7 @@ const fps = +(args.fps || 60);
 const W = +(args.w || 1920);
 const H = +(args.h || 1080);
 const out = args.out || 'output/house_360.mp4';
+const ss = +(args.ss || 1); // supersampling factor (render larger, downscale)
 const ffmpeg = process.env.FFMPEG || 'ffmpeg';
 
 const server = await serve(0);
@@ -31,10 +33,10 @@ const port = server.address().port;
 const browser = await playwright.chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-const page = await browser.newPage({ viewport: { width: W, height: H } });
+const page = await browser.newPage({ viewport: { width: W * ss, height: H * ss } });
 page.on('console', (m) => console.log('[page]', m.text()));
 page.on('pageerror', (e) => console.error('[page error]', e));
-await page.goto(`http://localhost:${port}/render.html?w=${W}&h=${H}`);
+await page.goto(`http://localhost:${port}/render.html?w=${W * ss}&h=${H * ss}`);
 await page.waitForFunction(() => window.sceneReady === true, null, { timeout: 60000 });
 
 const grab = async (angle) => {
@@ -44,12 +46,16 @@ const grab = async (angle) => {
 
 if (args.stills) {
   fs.mkdirSync('output/stills', { recursive: true });
-  for (let k = 0; k < 8; k++) fs.writeFileSync(`output/stills/view_${k * 45}.jpg`, await grab((k * Math.PI) / 4));
+  const n = +(args.count || 8);
+  for (let k = 0; k < n; k++) {
+    const deg = (k * 360) / n;
+    fs.writeFileSync(`output/stills/view_${String(deg).replace('.', '_')}.jpg`, await grab((deg * Math.PI) / 180));
+  }
   console.log('wrote output/stills');
 } else {
   const frames = Math.round(seconds * fps);
   const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+    '-vf', `scale=${W}:${H}:flags=lanczos`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
   for (let i = 0; i < frames; i++) {
     // ease in/out over the loop would stall the motion; keep constant speed so it loops seamlessly
