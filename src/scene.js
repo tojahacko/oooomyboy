@@ -1,16 +1,11 @@
 // Studio scene: neutral white backdrop, sun + sky lighting with real shadows,
 // and a turntable camera that orbits the fixed house at constant height,
 // radius and focal length (angle 0 = front elevation, 90 = east/right,
-// 180 = rear, 270 = west/left).
+// 180 = rear, 270 = west/left). Each house module in ./houses exports
+// buildHouse() and its ORBIT framing.
 import * as THREE from 'three';
-import { buildHouse } from './house.js';
 
-export const ORBIT = {
-  radius: 33,
-  height: 9.2,
-  fov: 30,
-  target: new THREE.Vector3(0, 2.2, 0),
-};
+export const HOUSES = ['zielistki34', 'macierzanki5'];
 
 // Equirectangular environments. `lighting` is a neutral studio sky that lights
 // the model without tinting it; `reflection` is what the glazing mirrors: sky
@@ -82,7 +77,9 @@ function reflectionEnvironment() {
   });
 }
 
-export async function createScene(canvas, { width, height, pixelRatio = 1 } = {}) {
+export async function createScene(canvas, { width, height, pixelRatio = 1, house: houseName = HOUSES[0] } = {}) {
+  if (!HOUSES.includes(houseName)) throw new Error(`unknown house ${houseName}`);
+  const { buildHouse, ORBIT } = await import(`./houses/${houseName}.js`);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
@@ -118,15 +115,21 @@ export async function createScene(canvas, { width, height, pixelRatio = 1 } = {}
   scene.add(ground);
 
   const { house, materials } = buildHouse();
-  materials.glass.envMap = pmrem.fromEquirectangular(reflectionEnvironment()).texture;
-  materials.glass.needsUpdate = true;
+  if (ORBIT.sun) sun.position.copy(ORBIT.sun);
+  const reflection = pmrem.fromEquirectangular(reflectionEnvironment()).texture;
+  for (const mat of Object.values(materials)) {
+    if (mat?.userData?.reflect) {
+      mat.envMap = reflection;
+      mat.needsUpdate = true;
+    }
+  }
   scene.add(house);
 
   const camera = new THREE.PerspectiveCamera(ORBIT.fov, width / height, 0.5, 400);
 
   function setOrbit(angle) {
     camera.position.set(Math.sin(angle) * ORBIT.radius, ORBIT.height, Math.cos(angle) * ORBIT.radius);
-    camera.lookAt(ORBIT.target);
+    camera.lookAt(ORBIT.target[0], ORBIT.target[1], ORBIT.target[2]);
   }
 
   function resize(w, h) {

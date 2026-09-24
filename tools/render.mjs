@@ -1,5 +1,5 @@
 // Render a 360 orbit around the house to an MP4.
-//   node tools/render.mjs [--seconds 16] [--fps 60] [--w 1920] [--h 1080] [--ss 2] [--out output/house_360.mp4]
+//   node tools/render.mjs [--house zielistki34] [--seconds 16] [--fps 60] [--w 1920] [--h 1080] [--ss 2] [--out output/house_360.mp4]
 //   node tools/render.mjs --stills [--count 16]
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -24,7 +24,8 @@ const seconds = +(args.seconds || 16);
 const fps = +(args.fps || 60);
 const W = +(args.w || 1920);
 const H = +(args.h || 1080);
-const out = args.out || 'output/house_360.mp4';
+const house = args.house || 'zielistki34';
+const out = args.out || `output/${house}_360.mp4`;
 const ss = +(args.ss || 1); // supersampling factor (render larger, downscale)
 const ffmpeg = process.env.FFMPEG || 'ffmpeg';
 
@@ -36,7 +37,7 @@ const browser = await playwright.chromium.launch({
 const page = await browser.newPage({ viewport: { width: W * ss, height: H * ss } });
 page.on('console', (m) => console.log('[page]', m.text()));
 page.on('pageerror', (e) => console.error('[page error]', e));
-await page.goto(`http://localhost:${port}/render.html?w=${W * ss}&h=${H * ss}`);
+await page.goto(`http://localhost:${port}/render.html?house=${house}&w=${W * ss}&h=${H * ss}`);
 await page.waitForFunction(() => window.sceneReady === true, null, { timeout: 60000 });
 
 const grab = async (angle) => {
@@ -45,13 +46,14 @@ const grab = async (angle) => {
 };
 
 if (args.stills) {
-  fs.mkdirSync('output/stills', { recursive: true });
+  const dir = `output/${house}_stills`;
+  fs.mkdirSync(dir, { recursive: true });
   const n = +(args.count || 8);
   for (let k = 0; k < n; k++) {
     const deg = (k * 360) / n;
-    fs.writeFileSync(`output/stills/view_${String(deg).replace('.', '_')}.jpg`, await grab((deg * Math.PI) / 180));
+    fs.writeFileSync(`${dir}/view_${String(deg).replace('.', '_')}.jpg`, await grab((deg * Math.PI) / 180));
   }
-  console.log('wrote output/stills');
+  console.log('wrote', dir);
 } else {
   const frames = Math.round(seconds * fps);
   const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',

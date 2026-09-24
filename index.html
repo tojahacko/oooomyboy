@@ -23,7 +23,7 @@
 <script type="module">
   import { createScene } from './src/scene.js';
   const canvas = document.getElementById('c');
-  const s = await createScene(canvas, { width: innerWidth, height: innerHeight, pixelRatio: Math.min(devicePixelRatio, 2) });
+  const s = await createScene(canvas, { width: innerWidth, height: innerHeight, pixelRatio: Math.min(devicePixelRatio, 2), house: new URLSearchParams(location.search).get('house') || undefined });
   const slider = document.getElementById('angle');
   const play = document.getElementById('play');
   let angle = 0, playing = true, last = performance.now(), drag = null;
