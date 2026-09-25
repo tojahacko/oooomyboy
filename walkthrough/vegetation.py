@@ -288,13 +288,21 @@ def ornamental_grass(seed, blades=520):
     return B, 0.9
 
 
-def lawn_tile(seed, size=0.5, density=36000):
+def lawn_tile(seed, size=0.5, density=36000, keep=None):
     """Seamless square patch of lawn centred on the origin, blades 4-10 cm,
-    `density` blades per square metre."""
+    `density` blades per square metre. `keep(x, y)` (vectorised, local
+    coordinates) drops blades rooted where it returns False, for tiles that
+    meet the pool coping or the lounger."""
     rng = np.random.default_rng(seed)
     n = int(density * size * size)
     x = (rng.random(n) - 0.5) * size
     y = (rng.random(n) - 0.5) * size
+    if keep is not None:
+        k = keep(x, y)
+        x, y = x[k], y[k]
+        n = len(x)
+        if n == 0:
+            return None, 0.1
     a = rng.uniform(0, 2 * math.pi, n)
     h = rng.uniform(0.04, 0.1, n)
     lean = rng.uniform(0.1, 0.7, n)

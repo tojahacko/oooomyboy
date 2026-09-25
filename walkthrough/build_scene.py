@@ -25,6 +25,7 @@ import random
 import sys
 
 import bpy
+import numpy as np
 from mathutils import Euler, Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -952,9 +953,29 @@ def vegetation():
     for i in range(int(26 / step)):
         for j in range(int(26 / step)):
             x0, y0 = -5 + i * step, 1 + j * step
-            if any(a < x0 + step and x0 < b and c < y0 + step and y0 < d for a, b, c, d in holes):
+            cx, cy = x0 + step / 2, y0 + step / 2
+            touching = [h for h in holes if h[0] < x0 + step and x0 < h[1] and h[2] < y0 + step and y0 < h[3]]
+            if not touching:
+                VG.place('lawn_tile', tile, (cx, cy, GROUND), rng.randrange(4) * math.pi / 2, 1.0, 'garden_v')
                 continue
-            VG.place('lawn_tile', tile, (x0 + step / 2, y0 + step / 2, GROUND), rng.randrange(4) * math.pi / 2, 1.0, 'garden_v')
+            if any(h[0] <= x0 and x0 + step <= h[1] and h[2] <= y0 and y0 + step <= h[3] for h in touching):
+                continue  # fully covered
+            # edge tile: its own mesh, blades clipped 3 cm clear of the hole
+
+            def keep(x, y, cx=cx, cy=cy, touching=touching):
+                ok = np.ones(len(x), bool)
+                for a, b, c, d in touching:
+                    ok &= ~((x + cx > a - 0.03) & (x + cx < b + 0.03) & (y + cy > c - 0.03) & (y + cy < d + 0.03))
+                return ok
+            B, _ = VG.lawn_tile(rng.randrange(10 ** 6), size=step, keep=keep)
+            if B is None:
+                continue
+            me = B.mesh(f'lawn_edge_{i}_{j}')
+            me.materials.append(mat('lawn'))
+            me.materials.append(mat('grass'))
+            ob = bpy.data.objects.new(f'lawn_edge_{i}_{j}', me)
+            ob.location = (cx, cy, GROUND)
+            collection('garden_v').objects.link(ob)
 
 
 # ---------------------------------------------------------------- world & lights
