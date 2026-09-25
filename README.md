@@ -57,4 +57,46 @@ shimmer on fine detail.
 The shared geometry and texture helpers are in `src/lib.js`. The scene,
 lighting and orbit are in `src/scene.js`.
 
+## Walkthrough: Dom w zielistkach 34 (A)
+
+[`output/zielistki34_walkthrough.mp4`](output/zielistki34_walkthrough.mp4) is a one-take,
+first-person walkthrough at eye level. It starts in the garden, steps onto the
+terrace, enters through the open terrace sliding door, and walks through the
+living room and dining area into the kitchen. It was path-traced in Blender
+Cycles, at 1280×720, 24 fps, 52 s.
+
+The ground-floor day zone is reconstructed from the ten interior photos
+(`source/zielistki34/interior_*.png`), placed inside the exterior model and
+cross-checked against landmarks that appear in several photos:
+
+- the terrace door, dining window and kitchen window line up with the elevations
+- the corner fireplace sits around the chimney flue
+- the TV wall and the corridor doors
+- the feature wall with the L-shaped sofa and two artworks
+- the dining table with six chairs and the linear pendant
+- the U-shaped kitchen with its oak-fronted peninsula, oak tall units with the
+  oven and coffee machine, white handleless cabinets and back-painted glass
+- the wooden venetian blinds
+
+Nothing else is added. The hall, the rooms behind the corridor doors and the
+upper floor aren't shown in the photos, so the walk never enters them.
+
+Pipeline (`walkthrough/`):
+
+```sh
+node tools/export_obj.mjs --out house.obj                     # exterior shell from the three.js model
+python3 walkthrough/build_scene.py house.obj walk.blend       # interior, garden, vegetation, sky (needs `pip install bpy`)
+python3 walkthrough/walk.py --check                           # path clearance, speed and turn-rate report
+python3 walkthrough/walk.py walk.blend frames/ --samples 12   # render frames (resumable)
+python3 walkthrough/preview.py walk.blend previews/           # stills matching the reference photos
+```
+
+What each file does:
+
+- `materials.py` holds the procedural materials.
+- `vegetation.py` builds trees, hedges and the lawn as real meshes: birches
+  with leaves on a twig network, pines, thujas, and 0.5 m grass tiles.
+- `walk.py` defines the camera path: spline keys, eased start and finish,
+  auto-exposure across the threshold, 180° shutter motion blur.
+
 The reference images are © ARCHON+ (archon.pl).

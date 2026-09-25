@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>House export</title>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+<script type="module">
+  // Exports a house model as Wavefront OBJ (one material per object, via
+  // `usemtl`), for the Blender walkthrough scene.
+  import * as THREE from 'three';
+  import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+  const name = new URLSearchParams(location.search).get('house') || 'zielistki34';
+  const { buildHouse } = await import(`./src/houses/${name}.js`);
+  const { house } = buildHouse();
+  house.updateMatrixWorld(true);
+  // flatten: one plain mesh per material, world transforms baked in
+  const out = new THREE.Group();
+  const add = (geometry, material, matrix) => {
+    const g = geometry.clone().applyMatrix4(matrix);
+    const mesh = new THREE.Mesh(g, material);
+    mesh.name = `${material.name}_${out.children.length}`;
+    out.add(mesh);
+  };
+  house.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.isInstancedMesh) {
+      const m = new THREE.Matrix4();
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, m);
+        add(o.geometry, o.material, o.matrixWorld.clone().multiply(m));
+      }
+    } else if (Array.isArray(o.material)) {
+      const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+      for (const grp of src.groups) {
+        const g = new THREE.BufferGeometry();
+        for (const [k, attr] of Object.entries(src.attributes)) {
+          const n = attr.itemSize;
+          g.setAttribute(k, new THREE.BufferAttribute(attr.array.slice(grp.start * n, (grp.start + grp.count) * n), n));
+        }
+        add(g, o.material[grp.materialIndex], o.matrixWorld);
+      }
+    } else {
+      add(o.geometry, o.material, o.matrixWorld);
+    }
+  });
+  window.objText = new OBJExporter().parse(out);
+</script>
+</body>
+</html>

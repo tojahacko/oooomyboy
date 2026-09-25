@@ -219,6 +219,7 @@ function makeMaterials() {
   };
   M.glass.userData.reflect = true;
   M.clearGlass.userData.reflect = true;
+  for (const [key, mat] of Object.entries(M)) if (mat.isMaterial) mat.name = key; // kept by glTF export
   return M;
 }
 
