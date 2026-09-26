@@ -1,7 +1,12 @@
 """Render the one-take walkthrough of Zielistki 34.
 
     python3 walkthrough/walk.py <scene.blend> <frames_dir> [--size 1280x720] [--fps 24]
-                                [--samples 64] [--start N] [--end N] [--step N] [--check]
+                                [--samples 16] [--ss 2] [--start N] [--end N] [--step N]
+                                [--frames a,b,c] [--threshold T] [--check]
+
+Frame f is rendered at exactly t = f / fps. With --ss 2 each frame is path
+traced at 2x the output size (2560x1440) and box-filtered down, with a static
+vignette applied in float before the single 8-bit rounding.
 
 The camera is a stabilised gimbal carried at eye height: it walks through the
 garden, steps onto the terrace, enters through the open half of the sliding
@@ -166,9 +171,101 @@ def check_path(fps=24):
     print(f'max speed {max_speed:.2f} m/s, max turn rate {max_turn:.1f} deg/s')
 
 
+def camera_rotations(n, fps):
+    """Camera Euler rotation per frame, kept continuous. Converting each
+    frame's orientation independently lets the heading wrap from +180 to -180
+    degrees between two frames; the motion-blur shutter then interpolates
+    through a full 360-degree spin and the frame becomes a ghosted blend of
+    the whole room. Each Euler is taken compatible with the previous one."""
+    out, prev = [], None
+    for f in range(n + 1):
+        _, d = camera_at(f / fps)
+        q = d.to_track_quat('-Z', 'Y')
+        e = q.to_euler('XYZ', prev) if prev is not None else q.to_euler('XYZ')
+        out.append(e)
+        prev = e
+    return out
+
+
+def vignette(w, h, angle=math.pi / 7):
+    """cos^4 falloff over the half-diagonal, the same curve as the ffmpeg
+    `vignette=angle=PI/7` filter used before, but applied here in float,
+    without dithering, so it is static from frame to frame."""
+    import numpy as np
+    y, x = np.mgrid[0:h, 0:w]
+    r = np.hypot(x - (w - 1) / 2, y - (h - 1) / 2) / math.hypot(w / 2, h / 2)
+    return (np.cos(angle * r) ** 4)[..., None]
+
+
+class Renderer:
+    def __init__(self, blend, size, samples, fps=24, ss=1, threshold=None, blur=True, clamp_indirect=8.0,
+                 min_samples=16):
+        self.w, self.h = size
+        self.ss = ss
+        self.fps = fps
+        bpy.ops.wm.open_mainfile(filepath=blend)
+        sc = self.sc = bpy.context.scene
+        configure(sc, (self.w * ss, self.h * ss), samples, threshold, clamp_indirect, min_samples)
+        sc.render.use_motion_blur = blur
+        sc.render.motion_blur_shutter = 0.5  # 180 degree shutter
+        sc.render.fps = fps
+        sc.render.fps_base = 1.0
+        cam_data = bpy.data.cameras.new('gimbal')
+        cam_data.lens = LENS_MM
+        cam_data.sensor_width = 36
+        cam_data.clip_start = 0.05
+        cam = self.cam = bpy.data.objects.new('gimbal', cam_data)
+        sc.collection.objects.link(cam)
+        sc.camera = cam
+        fire = bpy.data.materials.get('fire')
+        self.noise = fire.node_tree.nodes[fire['noise']] if fire else None
+        # the camera is keyed on every frame; motion blur samples the curve
+        # between neighbouring keys, so keys must be continuous
+        self.n = int(DURATION * fps)
+        rots = camera_rotations(self.n, fps)
+        cam.animation_data_clear()
+        for f in range(self.n + 1):
+            p, _ = camera_at(f / fps)
+            cam.location = p
+            cam.rotation_euler = rots[f]
+            cam.keyframe_insert('location', frame=f)
+            cam.keyframe_insert('rotation_euler', frame=f)
+        self.vig = vignette(self.w, self.h)
+
+    def render(self, f, path, crop=None, post=True):
+        """Render frame f (time exactly f / fps) to an 8-bit PNG at the output
+        size. With ss > 1 the frame is rendered ss times larger and box-
+        filtered down. `crop` = (x0, x1, y0, y1) fractions renders a region."""
+        import numpy as np
+        from PIL import Image
+        sc = self.sc
+        sc.frame_set(f)
+        p, _ = camera_at(f / self.fps)
+        sc.view_settings.exposure = exposure_at(p)
+        if self.noise:  # flame animation, a pure function of the frame number
+            self.noise.inputs['W'].default_value = f * 0.09
+        sc.render.use_border = crop is not None
+        sc.render.use_crop_to_border = crop is not None
+        if crop:
+            sc.render.border_min_x, sc.render.border_max_x = crop[0], crop[1]
+            sc.render.border_min_y, sc.render.border_max_y = 1 - crop[3], 1 - crop[2]
+        tmp = path + '.full.png'
+        sc.render.filepath = tmp
+        bpy.ops.render.render(write_still=True)
+        img = np.asarray(Image.open(tmp).convert('RGB'), dtype=np.float64)
+        s = self.ss
+        hh, ww = (img.shape[0] // s) * s, (img.shape[1] // s) * s
+        img = img[:hh, :ww].reshape(hh // s, s, ww // s, s, 3).mean(axis=(1, 3))
+        if post and crop is None:
+            img = img * self.vig
+        Image.fromarray(np.clip(np.rint(img), 0, 255).astype(np.uint8)).save(path)
+        os.remove(tmp)
+        return img
+
+
 def main():
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
-    opts = {'size': '1280x720', 'fps': '24', 'samples': '64', 'start': '0', 'end': '-1', 'step': '1'}
+    opts = {'size': '1280x720', 'fps': '24', 'samples': '12', 'ss': '2', 'start': '0', 'end': '-1', 'step': '1'}
     rest = []
     it = iter(args)
     for a in it:
@@ -184,37 +281,10 @@ def main():
         return
     blend, out_dir = rest
     w, h = (int(v) for v in opts['size'].split('x'))
-    bpy.ops.wm.open_mainfile(filepath=blend)
-    sc = bpy.context.scene
-    configure(sc, (w, h), int(opts['samples']), float(opts.get('threshold', 0.04)))
-    sc.render.use_motion_blur = True
-    sc.render.motion_blur_shutter = 0.5  # 180 degree shutter
-    sc.render.fps = fps
-    cam_data = bpy.data.cameras.new('gimbal')
-    cam_data.lens = LENS_MM
-    cam_data.sensor_width = 36
-    cam_data.clip_start = 0.05
-    cam = bpy.data.objects.new('gimbal', cam_data)
-    sc.collection.objects.link(cam)
-    sc.camera = cam
-    fire = bpy.data.materials.get('fire')
-    noise = fire.node_tree.nodes[fire['noise']] if fire else None
-
-    n = int(DURATION * fps)
-    end = n if int(opts['end']) < 0 else min(n, int(opts['end']))
+    thr = float(opts['threshold']) if 'threshold' in opts else None
+    r = Renderer(blend, (w, h), int(opts['samples']), fps, int(opts['ss']), thr)
+    end = r.n if int(opts['end']) < 0 else min(r.n, int(opts['end']))
     os.makedirs(out_dir, exist_ok=True)
-    # keyframe the camera at every frame (plus half-frame neighbours come from
-    # interpolation), so motion blur follows the true path
-    cam.animation_data_clear()
-    for f in range(0, n + 1):
-        p, d = camera_at(f / fps)
-        cam.location = p
-        cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
-        cam.keyframe_insert('location', frame=f)
-        cam.keyframe_insert('rotation_euler', frame=f)
-    for fc in cam.animation_data.action.fcurves if hasattr(cam.animation_data.action, 'fcurves') else []:
-        for kp in fc.keyframe_points:
-            kp.interpolation = 'LINEAR'
     frames = range(int(opts['start']), end + 1, int(opts['step']))
     if 'frames' in opts:
         frames = [int(v) for v in opts['frames'].split(',')]
@@ -223,14 +293,8 @@ def main():
         if os.path.exists(path):
             continue
         t0 = time.time()
-        sc.frame_set(f)
-        p, _ = camera_at(f / fps)
-        sc.view_settings.exposure = exposure_at(p)
-        if noise:
-            noise.inputs['W'].default_value = f * 0.09
-        sc.render.filepath = path
-        bpy.ops.render.render(write_still=True)
-        print(f'frame {f}/{n} {time.time() - t0:.1f}s', flush=True)
+        r.render(f, path)
+        print(f'frame {f}/{r.n} {time.time() - t0:.1f}s', flush=True)
 
 
 if __name__ == '__main__':

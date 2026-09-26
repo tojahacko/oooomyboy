@@ -376,6 +376,11 @@ def fireplace():
         sphere('fire_stone', (sx, sy, z0 + 0.04), rng.uniform(0.018, 0.03), mat('embers' if glow else 'stones'), seg=10,
                scale=(1.2, 1.0, 0.6))
     fire = mat('fire')
+    # The flame sheets are animated (4D noise), so as light sources they would
+    # make the room's lighting flicker frame to frame. They stay visible but
+    # emit no light; the constant fire_light point lamp provides the glow.
+    fire.cycles.emission_sampling = 'NONE'
+    mat('embers').cycles.emission_sampling = 'NONE'
     for i in range(12):
         w = rng.uniform(0.08, 0.14)
         h = rng.uniform(0.2, 0.36)

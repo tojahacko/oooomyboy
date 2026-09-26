@@ -5,7 +5,16 @@ shader nodes: plaster, stone-look floor tiles, oak veneer, fabrics, lacquer,
 back-painted glass, roof tiles, decking, lawn and so on. Colours are sampled
 by eye from the reference photos in source/zielistki34/.
 """
+import math
+
 import bpy
+
+# Angle covered by one output pixel: 36 mm sensor, 17 mm lens, 1280 px wide.
+# Cycles never mipmaps procedural textures, so every high-frequency pattern is
+# band-limited against this footprint instead (see Nodes.octaves / Nodes.lod):
+# detail finer than ~2 output pixels is replaced by its average, exactly what
+# a mipmapped texture would show, so it cannot alias or crawl as the camera moves.
+PIXEL_ANGLE = 36 / 17 / 1280
 
 
 def _hex(h, a=1.0):
@@ -23,6 +32,7 @@ class Nodes:
         self.mat.use_nodes = True
         self.nt = self.mat.node_tree
         self.nt.nodes.clear()
+        self._fp = None
         self.out = self.new('ShaderNodeOutputMaterial', (600, 0))
         self.bsdf = self.new('ShaderNodeBsdfPrincipled', (300, 0))
         self.link(self.bsdf, 0, self.out, 'Surface')
@@ -62,13 +72,120 @@ class Nodes:
         self.link(fac_src, fac_out, r, 'Fac')
         return r
 
-    def bump(self, height_node, out, strength=0.1, distance=0.01, loc=(0, -300)):
+    def bump(self, height_node, out, strength=0.1, distance=0.01, loc=(0, -300), size=None):
+        """Bump from a height pattern. `size` is the pattern's feature size in
+        metres; the bump fades out where that is under ~2 output pixels."""
         b = self.new('ShaderNodeBump', loc)
         b.inputs['Strength'].default_value = strength
         b.inputs['Distance'].default_value = distance
         self.link(height_node, out, b, 'Height')
         self.link(b, 'Normal', self.bsdf, 'Normal')
+        if size is not None:
+            m = self.math('MULTIPLY', self.lod(size), 0, strength)
+            self.link(m, 0, b, 'Strength')
         return b
+
+    # -- band limiting ---------------------------------------------------
+
+    def math(self, op, a=None, a_out=0, b=None, loc=(-1400, -700)):
+        m = self.new('ShaderNodeMath', loc)
+        m.operation = op
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                m.inputs[i].default_value = v
+            else:
+                self.link(v, a_out if i == 0 else 0, m, i)
+        return m
+
+    def footprint(self):
+        """Size in metres of one output pixel at the shading point."""
+        if self._fp is None:
+            cam = self.new('ShaderNodeCameraData', (-1800, -700))
+            self._fp = self.new('ShaderNodeMath', (-1600, -700))
+            self._fp.operation = 'MULTIPLY'
+            self._fp.inputs[1].default_value = PIXEL_ANGLE
+            self.link(cam, 'View Distance', self._fp, 0)
+        return self._fp
+
+    def lod(self, size):
+        """0..1 visibility of a feature `size` metres across: 0 at <= 1 output
+        pixel, 1 at >= 3 pixels (Result output)."""
+        ratio = self.new('ShaderNodeMath', (-1400, -700))
+        ratio.operation = 'DIVIDE'
+        ratio.inputs[0].default_value = size
+        self.link(self.footprint(), 0, ratio, 1)
+        mr = self.new('ShaderNodeMapRange', (-1200, -700))
+        mr.clamp = True
+        mr.inputs['From Min'].default_value = 1.0
+        mr.inputs['From Max'].default_value = 3.0
+        self.link(ratio, 0, mr, 'Value')
+        return mr
+
+    def octaves(self, tex, period, max_detail):
+        """Drive a Noise/Voronoi texture's Detail so it only keeps octaves whose
+        period (base `period` metres, halving per octave) is >= 2 output pixels."""
+        ratio = self.new('ShaderNodeMath', (-1400, -900))
+        ratio.operation = 'DIVIDE'
+        ratio.inputs[0].default_value = period / 2
+        self.link(self.footprint(), 0, ratio, 1)
+        lg = self.new('ShaderNodeMath', (-1250, -900))
+        lg.operation = 'LOGARITHM'
+        lg.inputs[1].default_value = 2.0
+        self.link(ratio, 0, lg, 0)
+        mr = self.new('ShaderNodeMapRange', (-1100, -900))
+        mr.clamp = True
+        mr.inputs['From Min'].default_value = 0.0
+        mr.inputs['From Max'].default_value = max_detail
+        mr.inputs['To Min'].default_value = 0.0
+        mr.inputs['To Max'].default_value = max_detail
+        self.link(lg, 0, mr, 'Value')
+        self.link(mr, 'Result', tex, 'Detail')
+        return mr
+
+    def toward(self, color_node, out, average, size, loc=(0, 200)):
+        """Blend a colour pattern of feature size `size` to its `average` colour
+        where the pattern is below pixel size (Mix Result output 2)."""
+        mix = self.new('ShaderNodeMix', loc)
+        mix.data_type = 'RGBA'
+        self.link(self.lod(size), 'Result', mix, 'Factor')
+        mix.inputs[6].default_value = average if len(average) == 4 else (*average, 1)
+        self.link(color_node, out, mix, 7)
+        return mix
+
+    def brick(self, vec, width, row, mortar, offset, c1, c2, cm, loc=(-700, 300), vec_out=0):
+        """Band-limited brick/tile pattern. Returns (colour node, colour output
+        index, mortar mask node). Tile colours come from a mortar-free copy of
+        the pattern; the mortar mask fades to its area coverage where the
+        joint is thinner than ~1-3 output pixels, so joints never break up
+        into crawling dashes."""
+        def brick_node(m, y):
+            b = self.new('ShaderNodeTexBrick', (loc[0], loc[1] + y))
+            b.offset = offset
+            b.inputs['Scale'].default_value = 1.0
+            b.inputs['Mortar Size'].default_value = m
+            b.inputs['Brick Width'].default_value = width
+            b.inputs['Row Height'].default_value = row
+            b.inputs['Color1'].default_value = c1
+            b.inputs['Color2'].default_value = c2
+            b.inputs['Mortar'].default_value = cm
+            self.link(vec, vec_out, b, 'Vector')
+            return b
+        tiles = brick_node(0.0, 0)
+        joints = brick_node(mortar, -300)
+        coverage = min(1.0, mortar * (1 / width + 1 / row))
+        mask = self.new('ShaderNodeMix', (loc[0] + 250, loc[1] - 300))
+        mask.data_type = 'FLOAT'
+        self.link(self.lod(mortar), 'Result', mask, 'Factor')
+        mask.inputs[2].default_value = coverage
+        self.link(joints, 'Fac', mask, 3)
+        col = self.new('ShaderNodeMix', (loc[0] + 450, loc[1]))
+        col.data_type = 'RGBA'
+        self.link(mask, 0, col, 'Factor')
+        self.link(tiles, 'Color', col, 6)
+        col.inputs[7].default_value = cm
+        return col, 2, mask
 
 
 def plain(name, color, rough=0.5, metal=0.0, coat=0.0, spec=0.5, sheen=0.0, emit=None, emit_strength=0.0):
@@ -87,6 +204,7 @@ def plaster(name, base, var=0.04, rough=0.9, scale=2.0, bump=0.04):
     big = n.new('ShaderNodeTexNoise', (-800, 100))
     big.inputs['Scale'].default_value = scale
     big.inputs['Detail'].default_value = 6
+    n.octaves(big, 1 / scale, 6)
     n.link(mp, 0, big, 'Vector')
     col = n.ramp(big, 'Fac', [(0.3, _shade(base, 1 - var)), (0.7, _shade(base, 1 + var * 0.5))])
     n.link(col, 0, n.bsdf, 'Base Color')
@@ -94,7 +212,7 @@ def plaster(name, base, var=0.04, rough=0.9, scale=2.0, bump=0.04):
     fine.inputs['Scale'].default_value = 900
     fine.inputs['Detail'].default_value = 2
     n.link(mp, 0, fine, 'Vector')
-    n.bump(fine, 'Fac', strength=bump, distance=0.002)
+    n.bump(fine, 'Fac', strength=bump, distance=0.002, size=1 / 900)
     n.set(Roughness=rough)
     return n.mat
 
@@ -112,12 +230,14 @@ def decorative_plaster(name):
     a.inputs['Scale'].default_value = 1.6
     a.inputs['Detail'].default_value = 10
     a.inputs['Roughness'].default_value = 0.62
+    n.octaves(a, 1 / 1.6, 10)
     n.link(mp, 0, a, 'Vector')
     col = n.ramp(a, 'Fac', [(0.25, '#9f9c97'), (0.5, '#b8b5af'), (0.75, '#cac7c1')])
     n.link(col, 0, n.bsdf, 'Base Color')
     trowel = n.new('ShaderNodeTexNoise', (-800, -250))
     trowel.inputs['Scale'].default_value = 7
     trowel.inputs['Detail'].default_value = 12
+    n.octaves(trowel, 1 / 7, 12)
     n.link(mp, 0, trowel, 'Vector')
     n.bump(trowel, 'Fac', strength=0.08, distance=0.004)
     n.set(Roughness=0.82)
@@ -128,20 +248,14 @@ def stone_tiles(name, tile=(1.2, 0.6)):
     """Large-format light grey stone-look porcelain, satin finish, fine grout."""
     n = Nodes(name)
     mp = n.coords('Object')
-    brick = n.new('ShaderNodeTexBrick', (-700, 300))
-    brick.offset = 0.0
-    brick.inputs['Scale'].default_value = 1.0
-    brick.inputs['Mortar Size'].default_value = 0.0018
-    brick.inputs['Brick Width'].default_value = tile[0]
-    brick.inputs['Row Height'].default_value = tile[1]
-    brick.inputs['Color1'].default_value = (1, 1, 1, 1)
-    brick.inputs['Color2'].default_value = (0.93, 0.93, 0.93, 1)
-    brick.inputs['Mortar'].default_value = (0, 0, 0, 1)
-    n.link(mp, 0, brick, 'Vector')
+    # tiles alternate slightly in tone; 1.8 mm grout joints (band-limited)
+    tiles, tiles_out, joints = n.brick(mp, tile[0], tile[1], 0.0018, 0.0,
+                                       (1, 1, 1, 1), (0.93, 0.93, 0.93, 1), (0, 0, 0, 1))
     # soft clouds + thin veins
     cloud = n.new('ShaderNodeTexNoise', (-700, 0))
     cloud.inputs['Scale'].default_value = 1.2
     cloud.inputs['Detail'].default_value = 8
+    n.octaves(cloud, 1 / 1.2, 8)
     n.link(mp, 0, cloud, 'Vector')
     vein = n.new('ShaderNodeTexWave', (-700, -250))
     vein.wave_type = 'BANDS'
@@ -150,25 +264,23 @@ def stone_tiles(name, tile=(1.2, 0.6)):
     vein.inputs['Detail'].default_value = 6
     n.link(mp, 0, vein, 'Vector')
     vramp = n.ramp(vein, 'Fac', [(0.0, (1, 1, 1, 1)), (0.03, (0.8, 0.8, 0.8, 1)), (0.06, (1, 1, 1, 1))], loc=(-450, -250))
+    # veins are ~1.5 cm wide: fade to their average tone when sub-pixel
+    vfilt = n.toward(vramp, 0, (0.985, 0.985, 0.985), 0.015, loc=(-300, -250))
     base = n.ramp(cloud, 'Fac', [(0.3, '#cfcecb'), (0.7, '#e2e1dd')], loc=(-450, 0))
     mix = n.new('ShaderNodeMix', (-200, 100))
     mix.data_type = 'RGBA'
     mix.blend_type = 'MULTIPLY'
     mix.inputs['Factor'].default_value = 1.0
     n.link(base, 0, mix, 6)
-    n.link(vramp, 0, mix, 7)
+    n.link(vfilt, 2, mix, 7)
     mix2 = n.new('ShaderNodeMix', (0, 100))
     mix2.data_type = 'RGBA'
     mix2.blend_type = 'MULTIPLY'
     mix2.inputs['Factor'].default_value = 1.0
     n.link(mix, 2, mix2, 6)
-    n.link(brick, 'Color', mix2, 7)
+    n.link(tiles, tiles_out, mix2, 7)
     n.link(mix2, 2, n.bsdf, 'Base Color')
-    grout = n.new('ShaderNodeMath', (-200, -450))
-    grout.operation = 'LESS_THAN'
-    grout.inputs[1].default_value = 0.5
-    n.link(brick, 'Fac', grout, 0)
-    n.bump(brick, 'Fac', strength=0.25, distance=0.002)
+    n.bump(joints, 0, strength=0.25, distance=0.002, size=0.0018)
     rough = n.new('ShaderNodeMapRange', (0, -150))
     rough.inputs['To Min'].default_value = 0.22
     rough.inputs['To Max'].default_value = 0.34
@@ -195,10 +307,13 @@ def oak(name, axis='Z', light='#d8ba94', mid='#c29d73', dark='#a57f57', rough=0.
     grain.inputs['Scale'].default_value = 1.5
     grain.inputs['Detail'].default_value = 12
     grain.inputs['Roughness'].default_value = 0.7
+    # grain lines run ~1.7 cm apart across the grain; finer octaves are only
+    # kept while they stay above two output pixels
+    n.octaves(grain, 1 / (1.5 * 40 * scale), 12)
     n.link(mixv, 1, grain, 'Vector')
     col = n.ramp(grain, 'Fac', [(0.35, dark), (0.5, mid), (0.68, light)])
     n.link(col, 0, n.bsdf, 'Base Color')
-    n.bump(grain, 'Fac', strength=0.08, distance=0.002)
+    n.bump(grain, 'Fac', strength=0.08, distance=0.002, size=1 / (1.5 * 40 * scale))
     n.set(Roughness=rough, **{'Coat Weight': 0.15, 'Coat Roughness': 0.35})
     return n.mat
 
@@ -210,9 +325,11 @@ def fabric(name, color, var=0.06, sheen=0.7, weave=420):
     fleck = n.new('ShaderNodeTexNoise', (-800, 200))
     fleck.inputs['Scale'].default_value = 60
     fleck.inputs['Detail'].default_value = 4
+    n.octaves(fleck, 1 / 60, 4)
     n.link(mp, 0, fleck, 'Vector')
     col = n.ramp(fleck, 'Fac', [(0.35, _shade(color, 1 - var)), (0.65, _shade(color, 1 + var))])
-    n.link(col, 0, n.bsdf, 'Base Color')
+    avg = _hex(color)
+    n.link(n.toward(col, 0, avg, 1 / 60, loc=(-50, 250)), 2, n.bsdf, 'Base Color')
     w1 = n.new('ShaderNodeTexWave', (-800, -150))
     w1.bands_direction = 'X'
     w1.inputs['Scale'].default_value = weave
@@ -225,7 +342,8 @@ def fabric(name, color, var=0.06, sheen=0.7, weave=420):
     add.operation = 'MULTIPLY'
     n.link(w1, 'Fac', add, 0)
     n.link(w2, 'Fac', add, 1)
-    n.bump(add, 0, strength=0.15, distance=0.0015)
+    # the weave (period 2*pi/(20*scale) m, < 1 mm) only shows in close-ups
+    n.bump(add, 0, strength=0.15, distance=0.0015, size=2 * math.pi / (20 * weave))
     n.set(Roughness=0.95, **{'Sheen Weight': sheen, 'Sheen Roughness': 0.4, 'Specular IOR Level': 0.3})
     return n.mat
 
@@ -262,9 +380,11 @@ def countertop(name, color='#2d2e30'):
     mp = n.coords('Object')
     sp = n.new('ShaderNodeTexNoise', (-600, 100))
     sp.inputs['Scale'].default_value = 300
+    n.octaves(sp, 1 / 300, 2)
     n.link(mp, 0, sp, 'Vector')
     col = n.ramp(sp, 'Fac', [(0.45, _shade(color, 0.85)), (0.6, _shade(color, 1.2))])
-    n.link(col, 0, n.bsdf, 'Base Color')
+    # 3 mm speckle: resolves to the plain stone colour beyond close range
+    n.link(n.toward(col, 0, _shade(color, 1.0), 1 / 300), 2, n.bsdf, 'Base Color')
     n.set(Roughness=0.38)
     return n.mat
 
@@ -282,14 +402,15 @@ def stones(name):
     n.link(mp, 0, cell, 'Vector')
     col = n.ramp(cell, 'Color', [(0.0, '#8f8a80'), (0.5, '#bdb7ab'), (1.0, '#d3cec4')], loc=(-400, 300))
     gap = n.ramp(vor, 'Distance', [(0.0, (0.15, 0.15, 0.15, 1)), (0.08, (1, 1, 1, 1))], loc=(-400, 0))
+    gap = n.toward(gap, 0, (0.88, 0.88, 0.88), 0.011, loc=(-250, 0))  # 1 cm dark joints
     mul = n.new('ShaderNodeMix', (-150, 150))
     mul.data_type = 'RGBA'
     mul.blend_type = 'MULTIPLY'
     mul.inputs['Factor'].default_value = 1
     n.link(col, 0, mul, 6)
-    n.link(gap, 0, mul, 7)
+    n.link(gap, 2, mul, 7)
     n.link(mul, 2, n.bsdf, 'Base Color')
-    n.bump(vor, 'Distance', strength=1.0, distance=0.05)
+    n.bump(vor, 'Distance', strength=1.0, distance=0.05, size=0.02)
     n.set(Roughness=0.85)
     return n.mat
 
@@ -298,16 +419,8 @@ def roof_tiles(name):
     """Flat concrete roof tiles on the exported slab UVs (metres)."""
     n = Nodes(name)
     uv = n.new('ShaderNodeTexCoord', (-1200, 0))
-    brick = n.new('ShaderNodeTexBrick', (-800, 200))
-    brick.offset = 0.5
-    brick.inputs['Scale'].default_value = 1.0
-    brick.inputs['Mortar Size'].default_value = 0.004
-    brick.inputs['Brick Width'].default_value = 0.33
-    brick.inputs['Row Height'].default_value = 0.33
-    brick.inputs['Color1'].default_value = _hex('#56595e')
-    brick.inputs['Color2'].default_value = _hex('#4b4e53')
-    brick.inputs['Mortar'].default_value = _hex('#1f2124')
-    n.link(uv, 'UV', brick, 'Vector')
+    tiles, tiles_out, _ = n.brick(uv, 0.33, 0.33, 0.004, 0.5, _hex('#56595e'), _hex('#4b4e53'), _hex('#1f2124'),
+                                  loc=(-800, 200), vec_out='UV')
     # course shadow: darker at the top of every course (overlap)
     sep = n.new('ShaderNodeSeparateXYZ', (-1000, -250))
     n.link(uv, 'UV', sep, 'Vector')
@@ -323,10 +436,12 @@ def roof_tiles(name):
     mul.data_type = 'RGBA'
     mul.blend_type = 'MULTIPLY'
     mul.inputs['Factor'].default_value = 1
-    n.link(brick, 'Color', mul, 6)
+    n.link(tiles, tiles_out, mul, 6)
     n.link(shade, 0, mul, 7)
     n.link(mul, 2, n.bsdf, 'Base Color')
-    n.bump(fr, 0, strength=0.4, distance=0.01)
+    # the course step is a height discontinuity: its bump is a one-pixel
+    # normal spike, so it fades out once the 4 cm overlap is near pixel size
+    n.bump(fr, 0, strength=0.4, distance=0.01, size=0.04)
     n.set(Roughness=0.62)
     return n.mat
 
@@ -334,21 +449,9 @@ def roof_tiles(name):
 def decking(name, color='#a67c55'):
     n = Nodes(name)
     mp = n.coords('Object')
-    brick = n.new('ShaderNodeTexBrick', (-700, 200))
-    brick.offset = 0.37
-    brick.inputs['Scale'].default_value = 1.0
-    brick.inputs['Mortar Size'].default_value = 0.006
-    brick.inputs['Brick Width'].default_value = 2.4
-    brick.inputs['Row Height'].default_value = 0.145
-    brick.inputs['Color1'].default_value = _hex(color)
-    brick.inputs['Color2'].default_value = _shade(color, 0.86)
-    brick.inputs['Mortar'].default_value = _hex('#2a1d12')
-    n.link(mp, 0, brick, 'Vector')
-    g = n.new('ShaderNodeTexNoise', (-700, -150))
-    g.inputs['Scale'].default_value = 3
-    n.link(mp, 0, g, 'Vector')
-    n.bump(brick, 'Fac', strength=0.3, distance=0.004)
-    n.link(brick, 'Color', n.bsdf, 'Base Color')
+    boards, boards_out, joints = n.brick(mp, 2.4, 0.145, 0.006, 0.37, _hex(color), _shade(color, 0.86), _hex('#2a1d12'))
+    n.bump(joints, 0, strength=0.3, distance=0.004, size=0.006)
+    n.link(boards, boards_out, n.bsdf, 'Base Color')
     n.set(Roughness=0.7)
     return n.mat
 
@@ -356,21 +459,12 @@ def decking(name, color='#a67c55'):
 def paving(name, color='#b9b8b3', slab=(1.2, 0.6)):
     n = Nodes(name)
     mp = n.coords('Object')
-    brick = n.new('ShaderNodeTexBrick', (-700, 200))
-    brick.offset = 0.5
-    brick.inputs['Scale'].default_value = 1.0
-    brick.inputs['Mortar Size'].default_value = 0.008
-    brick.inputs['Brick Width'].default_value = slab[0]
-    brick.inputs['Row Height'].default_value = slab[1]
-    brick.inputs['Color1'].default_value = _hex(color)
-    brick.inputs['Color2'].default_value = _shade(color, 0.93)
-    brick.inputs['Mortar'].default_value = _shade(color, 0.6)
-    n.link(mp, 0, brick, 'Vector')
+    slabs, slabs_out, _ = n.brick(mp, slab[0], slab[1], 0.008, 0.5, _hex(color), _shade(color, 0.93), _shade(color, 0.6))
     nz = n.new('ShaderNodeTexNoise', (-700, -150))
     nz.inputs['Scale'].default_value = 80
     n.link(mp, 0, nz, 'Vector')
-    n.link(brick, 'Color', n.bsdf, 'Base Color')
-    n.bump(nz, 'Fac', strength=0.1, distance=0.003)
+    n.link(slabs, slabs_out, n.bsdf, 'Base Color')
+    n.bump(nz, 'Fac', strength=0.1, distance=0.003, size=1 / 80)
     n.set(Roughness=0.85)
     return n.mat
 
@@ -383,14 +477,22 @@ def lawn_ground(name):
     big = n.new('ShaderNodeTexNoise', (-900, 250))
     big.inputs['Scale'].default_value = 0.25
     big.inputs['Detail'].default_value = 6
+    n.octaves(big, 1 / 0.25, 6)
     n.link(mp, 0, big, 'Vector')
     mid = n.new('ShaderNodeTexNoise', (-900, 0))
     mid.inputs['Scale'].default_value = 6
     mid.inputs['Detail'].default_value = 4
+    n.octaves(mid, 1 / 6, 4)
     n.link(mp, 0, mid, 'Vector')
-    fine = n.new('ShaderNodeTexVoronoi', (-900, -250))
-    fine.inputs['Scale'].default_value = 260
-    n.link(mp, 0, fine, 'Vector')
+    fine_raw = n.new('ShaderNodeTexVoronoi', (-900, -250))
+    fine_raw.inputs['Scale'].default_value = 260
+    n.link(mp, 0, fine_raw, 'Vector')
+    # 4 mm cells: replaced by their mean distance once below pixel size
+    fine = n.new('ShaderNodeMix', (-750, -250))
+    fine.data_type = 'FLOAT'
+    n.link(n.lod(1 / 260), 'Result', fine, 'Factor')
+    fine.inputs[2].default_value = 0.45
+    n.link(fine_raw, 'Distance', fine, 3)
     stripes = n.new('ShaderNodeTexWave', (-900, -500))
     stripes.bands_direction = 'X'
     stripes.inputs['Scale'].default_value = 0.35
@@ -404,7 +506,7 @@ def lawn_ground(name):
     acc2 = n.new('ShaderNodeMath', (-500, 0))
     acc2.operation = 'MULTIPLY_ADD'
     acc2.inputs[1].default_value = 0.35
-    n.link(fine, 'Distance', acc2, 0)
+    n.link(fine, 0, acc2, 0)
     n.link(acc, 0, acc2, 2)
     acc3 = n.new('ShaderNodeMath', (-350, -100))
     acc3.operation = 'MULTIPLY_ADD'
@@ -413,7 +515,7 @@ def lawn_ground(name):
     n.link(acc2, 0, acc3, 2)
     col = n.ramp(acc3, 0, [(0.35, '#35591d'), (0.62, '#557f2c'), (0.9, '#7c9a45')], loc=(-150, 0))
     n.link(col, 0, n.bsdf, 'Base Color')
-    n.bump(fine, 'Distance', strength=0.5, distance=0.01)
+    n.bump(fine_raw, 'Distance', strength=0.5, distance=0.01, size=1 / 260)
     n.set(Roughness=0.95, **{'Specular IOR Level': 0.3})
     return n.mat
 
@@ -466,9 +568,11 @@ def birch_bark(name):
     nz = n.new('ShaderNodeTexNoise', (-700, 0))
     nz.inputs['Scale'].default_value = 3
     nz.inputs['Detail'].default_value = 6
+    n.octaves(nz, 1 / 18, 6)
     n.link(mp, 0, nz, 'Vector')
     col = n.ramp(nz, 'Fac', [(0.62, '#e8e6df'), (0.66, '#2a2724'), (0.7, '#dcd9d0')])
-    n.link(col, 0, n.bsdf, 'Base Color')
+    # the dark lenticels are ~2-3 cm: averaged into the bark tone at distance
+    n.link(n.toward(col, 0, _hex('#cdcac2'), 0.025), 2, n.bsdf, 'Base Color')
     n.set(Roughness=0.7)
     return n.mat
 
@@ -479,10 +583,11 @@ def bark(name, color='#6b4a33'):
     nz = n.new('ShaderNodeTexNoise', (-700, 0))
     nz.inputs['Scale'].default_value = 4
     nz.inputs['Detail'].default_value = 8
+    n.octaves(nz, 1 / 32, 8)
     n.link(mp, 0, nz, 'Vector')
     col = n.ramp(nz, 'Fac', [(0.3, _shade(color, 0.6)), (0.7, _shade(color, 1.2))])
     n.link(col, 0, n.bsdf, 'Base Color')
-    n.bump(nz, 'Fac', strength=0.6, distance=0.02)
+    n.bump(nz, 'Fac', strength=0.6, distance=0.02, size=1 / 32)
     n.set(Roughness=0.85)
     return n.mat
 
@@ -493,6 +598,7 @@ def water(name):
     wv = n.new('ShaderNodeTexNoise', (-700, 0))
     wv.inputs['Scale'].default_value = 1.4
     wv.inputs['Detail'].default_value = 4
+    n.octaves(wv, 1 / 1.4, 4)
     n.link(mp, 0, wv, 'Vector')
     n.bump(wv, 'Fac', strength=0.08, distance=0.02)
     n.set(**{'Base Color': _hex('#d8f0f2'), 'Roughness': 0.02, 'IOR': 1.33, 'Transmission Weight': 1.0})
@@ -502,17 +608,11 @@ def water(name):
 def pool_tiles(name):
     n = Nodes(name)
     mp = n.coords('Object')
-    brick = n.new('ShaderNodeTexBrick', (-700, 0))
-    brick.offset = 0.0
-    brick.inputs['Scale'].default_value = 1.0
-    brick.inputs['Mortar Size'].default_value = 0.002
-    brick.inputs['Brick Width'].default_value = 0.025
-    brick.inputs['Row Height'].default_value = 0.025
-    brick.inputs['Color1'].default_value = _hex('#58b8c8')
-    brick.inputs['Color2'].default_value = _hex('#4aa6ba')
-    brick.inputs['Mortar'].default_value = _hex('#d8e8e8')
-    n.link(mp, 0, brick, 'Vector')
-    n.link(brick, 'Color', n.bsdf, 'Base Color')
+    tiles, tiles_out, _ = n.brick(mp, 0.025, 0.025, 0.002, 0.0, _hex('#58b8c8'), _hex('#4aa6ba'), _hex('#d8e8e8'))
+    # 2.5 cm mosaic: individual tiles blend to the mean colour when sub-pixel
+    avg = tuple(0.84 * a + 0.16 * c for a, c in zip(
+        [(x + y) / 2 for x, y in zip(_hex('#58b8c8'), _hex('#4aa6ba'))], _hex('#d8e8e8')))
+    n.link(n.toward(tiles, tiles_out, avg, 0.025), 2, n.bsdf, 'Base Color')
     n.set(Roughness=0.2)
     return n.mat
 
@@ -601,9 +701,10 @@ def painting_stripe(name):
     tan.inputs[7].default_value = _hex('#a98f6b')
     tex = n.new('ShaderNodeTexNoise', (-700, -450))
     tex.inputs['Scale'].default_value = 40
+    n.octaves(tex, 1 / 40, 2)
     n.link(tc, 'Object', tex, 'Vector')
     n.link(tan, 2, n.bsdf, 'Base Color')
-    n.bump(tex, 'Fac', strength=0.3, distance=0.002)
+    n.bump(tex, 'Fac', strength=0.3, distance=0.002, size=1 / 40)
     n.set(Roughness=0.85)
     return n.mat
 
@@ -617,6 +718,7 @@ def painting_split(name):
     nz = n.new('ShaderNodeTexNoise', (-1000, -300))
     nz.inputs['Scale'].default_value = 9
     nz.inputs['Detail'].default_value = 10
+    n.octaves(nz, 1 / 9, 10)
     n.link(tc, 'Object', nz, 'Vector')
     dark = n.ramp(nz, 'Fac', [(0.35, '#2f3a42'), (0.65, '#5b6970')], loc=(-700, -300))
     light = n.ramp(nz, 'Fac', [(0.35, '#dcdad4'), (0.65, '#f4f3ef')], loc=(-700, 100))

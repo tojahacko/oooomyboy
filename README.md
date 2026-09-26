@@ -63,7 +63,7 @@ lighting and orbit are in `src/scene.js`.
 first-person walkthrough at eye level. It starts in the garden, steps onto the
 terrace, enters through the open terrace sliding door, and walks through the
 living room and dining area into the kitchen. It was path-traced in Blender
-Cycles, at 1280×720, 24 fps, 52 s.
+Cycles, at 1280×720, 24 fps, 52 s (1249 frames).
 
 The ground-floor day zone is reconstructed from the ten interior photos
 (`source/zielistki34/interior_*.png`), placed inside the exterior model and
@@ -87,16 +87,36 @@ Pipeline (`walkthrough/`):
 node tools/export_obj.mjs --out house.obj                     # exterior shell from the three.js model
 python3 walkthrough/build_scene.py house.obj walk.blend       # interior, garden, vegetation, sky (needs `pip install bpy`)
 python3 walkthrough/walk.py --check                           # path clearance, speed and turn-rate report
-python3 walkthrough/walk.py walk.blend frames/ --samples 12   # render frames (resumable)
+python3 walkthrough/walk.py walk.blend frames/                # render all frames (resumable)
+python3 walkthrough/check_sequence.py frames/                 # spikes (blended/ghost frames), gaps, exposure wobble
+python3 walkthrough/encode.py frames/ walkthrough.mp4         # 24 fps H.264, no filters
+python3 walkthrough/stability.py walk.blend out/ --label x     # seed-to-seed shimmer metric for a settings choice
 python3 walkthrough/preview.py walk.blend previews/           # stills matching the reference photos
 ```
 
 What each file does:
 
-- `materials.py` holds the procedural materials.
+- `materials.py` holds the procedural materials. Cycles never mipmaps
+  procedural textures, so every fine pattern (tile grout, deck joints, roof
+  courses, fabric weave, worktop speckle, wood-grain octaves, plaster and
+  lawn noise) is band-limited against the on-screen pixel footprint (camera
+  distance × pixel angle). Detail finer than about two output pixels fades to
+  its average instead of aliasing and crawling as the camera moves.
 - `vegetation.py` builds trees, hedges and the lawn as real meshes: birches
   with leaves on a twig network, pines, thujas, and 0.5 m grass tiles.
-- `walk.py` defines the camera path: spline keys, eased start and finish,
-  auto-exposure across the threshold, 180° shutter motion blur.
+- `walk.py` renders frame *f* at exactly *t = f / 24*. It holds the camera
+  path (spline keys, eased start and finish, auto-exposure across the
+  threshold, 180° shutter motion blur), keyed with continuous Euler angles.
+
+Render settings (`render_setup.py`, `walk.py`):
+
+- Cycles path tracing at 2560×1440, 12 samples per pixel, uniform (not
+  adaptive).
+- Fixed, non-animated seed.
+- OpenImageDenoise (high quality, albedo + normal).
+- Box-filtered to 1280×720, with a static vignette applied in float before
+  the single rounding to 8 bits.
+- The fireplace flames are animated but don't act as light sources; a
+  constant lamp provides the fire's glow.
 
 The reference images are © ARCHON+ (archon.pl).
