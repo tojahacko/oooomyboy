@@ -29,7 +29,10 @@ def main():
     else:
         cmd += ['-c:v', 'libx264', '-preset', 'slower', '-tune', 'film', '-crf', opts['crf'],
                 '-profile:v', 'high', '-g', '48', '-keyint_min', '24', '-aq-mode', '3']
-    cmd += ['-r', '24', '-movflags', '+faststart', '-an', out]
+    # -fps_mode passthrough already gives exact 24fps CFR output here (input
+    # is declared at -framerate 24 with one PNG per frame); an explicit -r 24
+    # would force a second, conflicting CFR conversion.
+    cmd += ['-movflags', '+faststart', '-an', out]
     subprocess.run(cmd, check=True)
     info = subprocess.run(['ffmpeg', '-i', out], capture_output=True, text=True).stderr
     print('\n'.join(l for l in info.splitlines() if 'Duration' in l or 'Video:' in l))
