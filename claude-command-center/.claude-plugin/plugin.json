@@ -2,7 +2,30 @@
   "name": "command-center",
   "version": "1.0.0",
   "description": "Live monitoring, model and cost tracking, time prediction, prompt intelligence and desktop notifications for Claude Code, with a local desktop dashboard.",
-  "author": { "name": "tojahacko" },
+  "author": {
+    "name": "tojahacko"
+  },
   "license": "MIT",
-  "keywords": ["monitoring", "cost", "analytics", "notifications", "dashboard"]
+  "keywords": [
+    "monitoring",
+    "cost",
+    "analytics",
+    "notifications",
+    "dashboard"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "autoOpen": {
+      "type": "boolean",
+      "title": "Open the panel at session start",
+      "description": "Show the Command Center panel beside the chat when a session starts. /cc-panel toggles it either way.",
+      "default": true
+    },
+    "port": {
+      "type": "number",
+      "title": "Backend port",
+      "description": "Port of the local Command Center backend (default 47821).",
+      "default": 47821
+    }
+  }
 }

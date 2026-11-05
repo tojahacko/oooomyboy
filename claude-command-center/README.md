@@ -25,6 +25,10 @@ A local command center for **Claude Code**. It shows which models and agents are
 | **Notifications** | Native Windows toasts (plus in-dashboard) when a task finishes, fails, hits repeated tool errors, waits for approval, asks a question or waits for your input. |
 | **Analytics** | Daily cost by model family, model × agent distribution, cost by project, task performance by complexity tier, prediction accuracy over time, advisor vs actual model, and an activity heatmap. |
 
+### The panel inside Claude Code
+
+In **local** Claude Code sessions (the desktop app's Code tab on a folder on your computer, or the terminal) a **Command Center panel** opens beside the chat. It shows active tasks with elapsed time, predicted time left, todo progress, subagents and their models, running tools, cost so far, alerts and recent tasks, and adds a short status entry such as `◆ 1 running · ~52s left (pred.) · $17.31 today`. Type `/cc-panel` to show or hide it, and use **Open full dashboard** for the window. The panel is built on Claude Code's early-access mod API (function hooks), so a future Claude Code update may change it. Cloud sessions don't draw it.
+
 Every number carries a tag: **measured** (read from Claude Code), **estimate** (tokens × list price), **reported** (Claude Code's own cost), **invoiced** (Admin API), **predicted** (forecast with sample size and basis), **heuristic** (advisor suggestion).
 
 ## Install on Windows

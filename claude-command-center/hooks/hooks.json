@@ -1,5 +1,8 @@
 {
   "description": "Claude Command Center: forwards Claude Code events to the local dashboard backend. Never blocks or changes what Claude does.",
+  "modules": [
+    "./panel.tsx"
+  ],
   "hooks": {
     "SessionStart": [
       {
