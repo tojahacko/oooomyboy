@@ -1,0 +1,8 @@
+{
+  "name": "command-center",
+  "version": "1.0.0",
+  "description": "Live monitoring, model and cost tracking, time prediction, prompt intelligence and desktop notifications for Claude Code, with a local desktop dashboard.",
+  "author": { "name": "tojahacko" },
+  "license": "MIT",
+  "keywords": ["monitoring", "cost", "analytics", "notifications", "dashboard"]
+}

@@ -120,3 +120,11 @@ Render settings (`render_setup.py`, `walk.py`):
   constant lamp provides the fire's glow.
 
 The reference images are © ARCHON+ (archon.pl).
+
+## Claude Command Center
+
+This repository also contains [Claude Command Center](claude-command-center/README.md), a local monitoring, cost, prediction and notification dashboard for Claude Code. On Windows, run `claude-command-center\windows\install.cmd`. Or install the plugin in Claude Code:
+
+```
+/plugin install command-center --marketplace tojahacko/oooomyboy
+```

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Command Center</title>
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0f0f14">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="30" height="30">
+      <div><div class="brand-name">Command Center</div><div class="brand-sub">for Claude Code</div></div>
+    </div>
+    <nav id="nav">
+      <a href="#/live" data-view="live"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7"/></svg></span>Live</a>
+      <a href="#/tasks" data-view="tasks"><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg></span>Tasks</a>
+      <a href="#/models" data-view="models"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>Models</a>
+      <a href="#/costs" data-view="costs"><span class="ico"><svg viewBox="0 0 24 24"><path d="M17 7.5c-.8-1.5-2.6-2.5-5-2.5-3 0-5 1.5-5 3.5s2 3 5 3.5 5 1.5 5 3.5-2 3.5-5 3.5c-2.4 0-4.2-1-5-2.5M12 3v18"/></svg></span>Costs</a>
+      <a href="#/analytics" data-view="analytics"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>Analytics</a>
+      <a href="#/advisor" data-view="advisor"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span>Prompt advisor</a>
+      <a href="#/settings" data-view="settings"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>Settings</a>
+    </nav>
+    <div class="nav-foot">
+      <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></div>
+      <div class="legend-tags">
+        <span class="tag measured">measured</span><span class="tag estimate">estimate</span>
+        <span class="tag predicted">predicted</span><span class="tag heuristic">heuristic</span>
+      </div>
+      <div class="fine">Unofficial tool. Not affiliated with Anthropic.</div>
+    </div>
+  </aside>
+  <main>
+    <header class="top">
+      <h1 id="title">Live</h1>
+      <div class="top-right">
+        <span class="billing-pill" id="billing-pill" title="How costs are labelled"></span>
+        <button class="icon-btn" id="theme-btn" title="Toggle light/dark"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        <button class="icon-btn bell" id="bell" title="Notifications"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><b id="unread" hidden></b></button>
+      </div>
+    </header>
+    <section id="view" class="view"></section>
+  </main>
+</div>
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-head"><h3>Notifications</h3><button class="link" id="mark-read">Mark all read</button></div>
+  <div id="drawer-list"></div>
+</div>
+<div class="toasts" id="toasts"></div>
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

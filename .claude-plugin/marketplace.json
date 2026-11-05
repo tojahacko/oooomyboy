@@ -1,0 +1,14 @@
+{
+  "name": "ccc",
+  "owner": { "name": "tojahacko" },
+  "metadata": { "description": "Claude Command Center for Claude Code (unofficial)." },
+  "plugins": [
+    {
+      "name": "command-center",
+      "source": "./claude-command-center",
+      "description": "Claude Command Center: live monitoring, model and cost tracking, time prediction, prompt intelligence and desktop notifications, with a local desktop dashboard.",
+      "version": "1.0.0",
+      "category": "monitoring"
+    }
+  ]
+}
