@@ -7,4 +7,4 @@ action = "open"
 If WScript.Arguments.Count > 0 Then
   If WScript.Arguments(0) = "--background" Then action = "start"
 End If
-sh.Run "node """ & appDir & "\bin\ccc.js"" " & action, 0, False
+sh.Run "node """ & appDir & "\cli\ccc.js"" " & action, 0, False

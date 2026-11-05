@@ -7,7 +7,7 @@ const { execFileSync } = require('child_process');
 const { tmpdir, ROOT } = require('./helpers');
 
 function ccc(dir, ...args) {
-  return execFileSync(process.execPath, [path.join(ROOT, 'bin', 'ccc.js'), ...args], {
+  return execFileSync(process.execPath, [path.join(ROOT, 'cli', 'ccc.js'), ...args], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: dir, CCC_HOME: path.join(dir, 'ccc'), CCC_PORT: '1' }, encoding: 'utf8',
   });
 }
@@ -45,12 +45,12 @@ test('cli: statusline never overwrites an existing status line without --force',
 });
 
 test('plugin hooks.json covers every event the CLI installs, with the same async policy', () => {
-  const { HOOK_EVENTS } = require('../bin/ccc.js');
+  const { HOOK_EVENTS } = require('../cli/ccc.js');
   const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'hooks', 'hooks.json'), 'utf8')).hooks;
   assert.deepEqual(Object.keys(plugin).sort(), Object.keys(HOOK_EVENTS).sort());
   for (const [ev, isAsync] of Object.entries(HOOK_EVENTS)) {
     const h = plugin[ev][0].hooks[0];
     assert.equal(!!h.async, isAsync, ev);
-    assert.match(h.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/ccc-hook\.js" /);
+    assert.match(h.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/cli\/ccc-hook\.js" /);
   }
 });

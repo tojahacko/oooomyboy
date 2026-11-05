@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" SessionStart",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" SessionStart",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" UserPromptSubmit",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" UserPromptSubmit",
             "timeout": 10
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" Stop",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" Stop",
             "timeout": 10
           }
         ]
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" StopFailure",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" StopFailure",
             "timeout": 10
           }
         ]
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" SessionEnd",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" SessionEnd",
             "timeout": 10
           }
         ]
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PreToolUse",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PreToolUse",
             "timeout": 10,
             "async": true
           }
@@ -80,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PostToolUse",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PostToolUse",
             "timeout": 10,
             "async": true
           }
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PostToolUseFailure",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PostToolUseFailure",
             "timeout": 10,
             "async": true
           }
@@ -106,7 +106,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PermissionRequest",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PermissionRequest",
             "timeout": 10,
             "async": true
           }
@@ -119,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PermissionDenied",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PermissionDenied",
             "timeout": 10,
             "async": true
           }
@@ -132,7 +132,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" SubagentStart",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" SubagentStart",
             "timeout": 10,
             "async": true
           }
@@ -145,7 +145,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" SubagentStop",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" SubagentStop",
             "timeout": 10,
             "async": true
           }
@@ -158,7 +158,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" Notification",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" Notification",
             "timeout": 10,
             "async": true
           }
@@ -171,7 +171,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" TaskCreated",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" TaskCreated",
             "timeout": 10,
             "async": true
           }
@@ -184,7 +184,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" TaskCompleted",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" TaskCompleted",
             "timeout": 10,
             "async": true
           }
@@ -197,7 +197,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ccc-hook.js\" PreCompact",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/cli/ccc-hook.js\" PreCompact",
             "timeout": 10,
             "async": true
           }

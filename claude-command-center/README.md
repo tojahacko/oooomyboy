@@ -72,13 +72,13 @@ This removes the plugin, hooks, status line, shortcuts and program files. Add `-
 ## How it works
 
 ```
- Claude Code ──hooks──▶ bin/ccc-hook.js ──HTTP 127.0.0.1──▶ backend (server/)  ◀──SSE── dashboard window
+ Claude Code ──hooks──▶ cli/ccc-hook.js ──HTTP 127.0.0.1──▶ backend (server/)  ◀──SSE── dashboard window
       │                 (exit 0 always; async for                │                        (dashboard/)
       │                  tool events; spools to disk             ├─ engine.js      task state machine
       │                  if the backend is down)                 ├─ transcripts.js measured usage per message/model/agent
       └──transcripts (~/.claude/projects/*.jsonl) ───────────────┤  predict.js     time prediction + calibration
                                                                  ├─ advisor.js     prompt intelligence
-      status line ◀── bin/ccc-statusline.js ◀────────────────────┤  analytics.js   history
+      status line ◀── cli/ccc-statusline.js ◀────────────────────┤  analytics.js   history
                                                                  └─ notify.js      Windows toasts
 ```
 
@@ -111,21 +111,21 @@ node scripts\verify.js            # tests, plugin validation, hook→backend→A
 node scripts\verify.js --notify   # also shows a real Windows toast
 node scripts\verify.js --live     # also runs a real Claude Code session on Haiku (costs < $0.02) and
                                   # checks the measured task cost against Claude Code's total_cost_usd
-node bin\ccc.js doctor            # checks the whole chain and says exactly what is missing
+node cli\ccc.js doctor            # checks the whole chain and says exactly what is missing
 ```
 \* The browser smoke test runs when `playwright` is installed (`npm i -g playwright`); otherwise it is skipped.
 
 ## Command line
 
-`node bin\ccc.js <command>`: `open`, `start`, `stop`, `status`, `doctor`, `summary`, `notify-test`, `statusline install|uninstall [--force]`, `hooks install|uninstall`, `run` (foreground).
+`node cli\ccc.js <command>`: `open`, `start`, `stop`, `status`, `doctor`, `summary`, `notify-test`, `statusline install|uninstall [--force]`, `hooks install|uninstall`, `run` (foreground).
 
 Environment variables: `CCC_PORT` (default 47821), `CCC_HOME` (data folder), `CLAUDE_CONFIG_DIR` (if you moved Claude Code's folder), `CCC_NO_AUTOSTART=1`.
 
 ## Troubleshooting
 
-- **Nothing appears in the dashboard:** run `node bin\ccc.js doctor`. Then start a new Claude Code session, because hooks load at session start. In Claude Code, `/hooks` lists the active hooks.
-- **Every event counted twice:** both the plugin and manual hooks are active. Run `node bin\ccc.js hooks uninstall`.
-- **No toasts:** check Windows Settings → System → Notifications (and Focus Assist), and run `node bin\ccc.js notify-test`.
+- **Nothing appears in the dashboard:** run `node cli\ccc.js doctor`. Then start a new Claude Code session, because hooks load at session start. In Claude Code, `/hooks` lists the active hooks.
+- **Every event counted twice:** both the plugin and manual hooks are active. Run `node cli\ccc.js hooks uninstall`.
+- **No toasts:** check Windows Settings → System → Notifications (and Focus Assist), and run `node cli\ccc.js notify-test`.
 - **Port in use:** set `CCC_PORT` (user environment variable) to another port and restart Claude Code.
 - **Logs:** `%USERPROFILE%\.claude-command-center\server.log`.
 
@@ -141,6 +141,6 @@ Environment variables: `CCC_PORT` (default 47821), `CCC_HOME` (data folder), `CL
 ```bash
 npm test                 # 28 unit/integration tests (node:test, no dependencies)
 node scripts/verify.js   # end-to-end report
-node bin/ccc.js run      # backend in the foreground
+node cli/ccc.js run      # backend in the foreground
 ```
 The dashboard is plain HTML, CSS and JS in `dashboard/` with no build step. Icons are regenerated with `node tools/make-icons.js`, which needs playwright.

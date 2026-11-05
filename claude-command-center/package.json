@@ -4,10 +4,9 @@
   "description": "Claude Command Center: live monitoring, model and cost tracking, time prediction, prompt intelligence and notifications for Claude Code.",
   "license": "MIT",
   "private": true,
-  "bin": { "ccc": "bin/ccc.js" },
   "engines": { "node": ">=18.17" },
   "scripts": {
-    "start": "node bin/ccc.js run",
+    "start": "node cli/ccc.js run",
     "test": "node --test \"test/*.test.js\"",
     "verify": "node scripts/verify.js"
   }

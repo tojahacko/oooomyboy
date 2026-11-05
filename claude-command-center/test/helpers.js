@@ -49,10 +49,10 @@ function request(port, method, p, body, headers = {}) {
   });
 }
 
-/** Run bin/ccc-hook.js exactly as Claude Code does: event name as argv, payload on stdin. */
+/** Run cli/ccc-hook.js exactly as Claude Code does: event name as argv, payload on stdin. */
 function runHook(event, payload, env) {
   return new Promise(resolve => {
-    const p = spawn(process.execPath, [path.join(ROOT, 'bin', 'ccc-hook.js'), event], { env: { ...process.env, CCC_NO_AUTOSTART: '1', ...env } });
+    const p = spawn(process.execPath, [path.join(ROOT, 'cli', 'ccc-hook.js'), event], { env: { ...process.env, CCC_NO_AUTOSTART: '1', ...env } });
     let out = '', err = '';
     const t0 = Date.now();
     p.stdout.on('data', d => { out += d; });

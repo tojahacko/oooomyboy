@@ -1,7 +1,7 @@
 'use strict';
 // Claude Command Center backend: a small local HTTP server (127.0.0.1 only).
-//  POST /api/hook        hook events from bin/ccc-hook.js
-//  POST /api/statusline  status line text for bin/ccc-statusline.js
+//  POST /api/hook        hook events from cli/ccc-hook.js
+//  POST /api/statusline  status line text for cli/ccc-statusline.js
 //  GET  /api/state       live snapshot          GET /api/events  server-sent events
 //  GET  /api/tasks[/:id] task history/detail    GET /api/analytics, /api/models, /api/pricing
 //  GET/POST /api/config  settings               POST /api/advise   prompt-intelligence playground

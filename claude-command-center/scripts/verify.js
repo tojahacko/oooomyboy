@@ -32,7 +32,7 @@ function req(port, method, p, body) {
 }
 function hook(event, payload, env) {
   return new Promise(resolve => {
-    const p = spawn(process.execPath, [path.join(ROOT, 'bin', 'ccc-hook.js'), event], { env: { ...process.env, CCC_NO_AUTOSTART: '1', ...env } });
+    const p = spawn(process.execPath, [path.join(ROOT, 'cli', 'ccc-hook.js'), event], { env: { ...process.env, CCC_NO_AUTOSTART: '1', ...env } });
     let out = ''; p.stdout.on('data', d => { out += d; });
     p.on('close', code => resolve({ code, out }));
     p.stdin.end(JSON.stringify(payload));
@@ -76,7 +76,7 @@ async function main() {
   await sleep(300);
   const state = await req(port, 'GET', '/api/state');
   const task = state && state.recent[0];
-  record('Hooks exit 0 for every event', hookFailures === 0 ? 'PASS' : 'FAIL', `${events.length} events through bin/ccc-hook.js`);
+  record('Hooks exit 0 for every event', hookFailures === 0 ? 'PASS' : 'FAIL', `${events.length} events through cli/ccc-hook.js`);
   record('Live monitoring: task lifecycle', task && task.status === 'completed' && task.toolCount === 5 && task.toolErrors === 1 ? 'PASS' : 'FAIL', task ? `${task.status}, ${task.toolCount} tools, ${task.toolErrors} error(s)` : 'no task');
   record('Subagent tracking (type + reported model)', task && task.agents.some(a => a.type === 'Explore' && a.model === 'claude-haiku-5-5') ? 'PASS' : 'FAIL');
   record('Progress from Claude\'s todo list', task && task.progress && task.progress.total === 4 ? 'PASS' : 'FAIL');

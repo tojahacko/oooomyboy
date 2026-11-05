@@ -50,11 +50,11 @@ if ($claude) {
 
 # ---------------------------------------------------------------- 2. copy files
 Step "Installing files to $app"
-if (Test-Path (Join-Path $app 'bin\ccc.js')) { & node (Join-Path $app 'bin\ccc.js') stop *> $null }
+if (Test-Path (Join-Path $app 'cli\ccc.js')) { & node (Join-Path $app 'cli\ccc.js') stop *> $null }
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 if (Test-Path $app) { Remove-Item -Recurse -Force $app }
 New-Item -ItemType Directory -Force -Path $app | Out-Null
-$items = @('.claude-plugin', 'bin', 'server', 'hooks', 'dashboard', 'windows', 'scripts', 'test', 'commands', 'package.json', 'README.md', 'LICENSE')
+$items = @('.claude-plugin', 'cli', 'server', 'hooks', 'dashboard', 'windows', 'scripts', 'test', 'commands', 'package.json', 'README.md', 'LICENSE')
 foreach ($i in $items) {
   $p = Join-Path $src $i
   if (Test-Path $p) { Copy-Item -Recurse -Force $p (Join-Path $app $i) }
@@ -75,7 +75,7 @@ $mp = @'
 [IO.File]::WriteAllText((Join-Path $root '.claude-plugin\marketplace.json'), $mp)
 Ok "Files copied"
 
-$ccc = Join-Path $app 'bin\ccc.js'
+$ccc = Join-Path $app 'cli\ccc.js'
 
 # ---------------------------------------------------------------- 3. Claude Code integration
 Step "Connecting to Claude Code"

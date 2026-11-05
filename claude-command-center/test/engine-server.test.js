@@ -159,7 +159,7 @@ test('bridge: with the backend down, hooks exit 0 fast, spool, and still advise;
 test('bridge: garbage on stdin never breaks a hook', async () => {
   const { spawn } = require('child_process');
   const code = await new Promise(res => {
-    const p = spawn(process.execPath, [path.join(__dirname, '..', 'bin', 'ccc-hook.js'), 'PreToolUse'], { env: { ...process.env, CCC_PORT: '1', CCC_HOME: tmpdir(), CCC_NO_AUTOSTART: '1' } });
+    const p = spawn(process.execPath, [path.join(__dirname, '..', 'cli', 'ccc-hook.js'), 'PreToolUse'], { env: { ...process.env, CCC_PORT: '1', CCC_HOME: tmpdir(), CCC_NO_AUTOSTART: '1' } });
     p.on('close', res);
     p.stdin.end('{not json');
   });

@@ -101,7 +101,7 @@ function writeSettings(s) {
   fs.writeFileSync(SETTINGS, JSON.stringify(s, null, 2) + '\n');
 }
 
-const nodeCmd = file => `node "${path.join(ROOT, 'bin', file).replace(/\\/g, '/')}"`;
+const nodeCmd = file => `node "${path.join(ROOT, 'cli', file).replace(/\\/g, '/')}"`;
 
 function statusline(action, force) {
   const s = readSettings();

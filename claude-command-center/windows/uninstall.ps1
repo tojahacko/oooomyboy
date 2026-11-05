@@ -4,7 +4,7 @@ param([switch]$RemoveData)
 $ErrorActionPreference = 'Continue'
 $root = Join-Path $env:LOCALAPPDATA 'ClaudeCommandCenter'
 $app = Join-Path $root 'app'
-$ccc = Join-Path $app 'bin\ccc.js'
+$ccc = Join-Path $app 'cli\ccc.js'
 
 Write-Host "Removing Claude Command Center..." -ForegroundColor Cyan
 if (Test-Path $ccc) {
